@@ -1,17 +1,18 @@
 #pragma once
+#include <vector>
 #include "be_token.hpp"
 
 class BeParser
 {
 public:
-    static BeToken parse(const std::string & data);
+    static std::vector<BeToken> parse(const std::string & source);
 
 private:
-    static BeToken parse(const char *& data, const char * END);
-    static BeToken process_integer(const char *& data, const char * END);
-    static BeToken process_string(const char *& data, const char * END);
-    static BeToken process_list(const char *& data, const char * END);
-    static BeToken process_dictionary(const char *& data, const char * END);
+    static std::vector<BeToken> parse             (const char * BEGIN, uint64_t & offset, uint64_t length);
+    static std::vector<BeToken> process_integer   (const char * BEGIN, uint64_t & offset, uint64_t length);
+    static std::vector<BeToken> process_string    (const char * BEGIN, uint64_t & offset, uint64_t length);
+    static std::vector<BeToken> process_list      (const char * BEGIN, uint64_t & offset, uint64_t length);
+    static std::vector<BeToken> process_dictionary(const char * BEGIN, uint64_t & offset, uint64_t length);
 
 };
 

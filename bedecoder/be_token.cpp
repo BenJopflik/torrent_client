@@ -1,8 +1,11 @@
 #include "be_token.hpp"
-#include <iostream>
-#include <iomanip>
 
 BeToken::BeToken()
+{
+
+}
+
+BeToken::BeToken(uint64_t type) : m_type(type)
 {
 
 }
@@ -12,106 +15,41 @@ BeToken::~BeToken()
 
 }
 
-BeToken::operator bool () const
+std::string BeToken::get(const std::string & source) const
 {
-    return m_type != UNKNOWN;
+    return m_data.get_string(source);
 }
 
-bool BeToken::operator < (const BeToken & right) const
+uint64_t BeToken::get_type() const
 {
-    switch (m_type)
-    {
-        case Type::INTEGER:
-            return m_int < right.m_int;
-
-        case Type::STRING:
-            return m_string < right.m_string;
-
-        default:
-            throw std::runtime_error("using map, list or unknown as a key");
-    }
+    return m_type;
 }
 
-
-int64_t BeToken::to_int() const
-{
-    if (m_type == INTEGER)
-        return m_int;
-
-    throw std::runtime_error("BeToken is not an int");
-}
-
-BeToken::operator int64_t () const
-{
-    return to_int();
-}
-
-std::string BeToken::to_string() const
-{
-    if (m_type == STRING)
-        return m_string;
-
-    throw std::runtime_error("BeToken is not an string");
-}
-
-BeToken::operator std::string () const
-{
-    return to_string();
-}
-
-// XXX Debug
-void BeToken::print(uint64_t tabs) const
+std::string BeToken::type_to_string() const
 {
     switch (m_type)
     {
-        case INTEGER:
-            std::cerr << std::setfill('\t') << std::setw(tabs) << m_int;
-            break;
+        case UNKNOWN:
+            return "UNKNOWN";
 
-        case STRING:
-            if (m_string.size() < 100)
-                std::cerr << std::setfill('\t') << std::setw(tabs) << m_string;
-            break;
+        case INT:
+            return "INT";
 
-        case LIST:
-            for (const auto & i : m_list)
-            {
-                i.print(tabs + 1);
-                std::cerr << std::endl;
-            }
-            break;
+        case STR:
+            return "STR";
 
-        case DICTIONARY:
-            for (const auto & i : m_dictionary)
-            {
-                i.first.print(tabs);
-                i.second.print(tabs);
-                std::cerr << std::endl;
-            }
-            break;
+        case LIST_START:
+            return "LIST_START";
 
-        default:
-            break;
+        case LIST_END:
+            return "LIST_END";
+
+        case DICT_START:
+            return "DICT_START";
+
+        case DICT_END:
+            return "DICT_END";
     }
-
-    std::cerr << std::endl;
+    return "";
 }
-
-void BeToken::insert(const BeToken & key, const BeToken & value)
-{
-    if (m_type != DICTIONARY)
-        throw std::runtime_error("token is not a dictionary");
-
-    m_dictionary.insert(std::make_pair(key, value));
-}
-
-void BeToken::push_back(const BeToken & value)
-{
-    if (m_type != LIST)
-        throw std::runtime_error("token is not a list");
-
-    m_list.push_back(value);
-}
-
-
 

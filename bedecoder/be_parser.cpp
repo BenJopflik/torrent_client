@@ -1,84 +1,111 @@
 #include "be_parser.hpp"
 #include <cassert>
+#include <stdexcept>
 
-BeToken BeParser::parse(const std::string & data)
+std::vector<BeToken> BeParser::parse(const std::string & data)
 {
     const char * tmp = data.c_str();
-    return parse(tmp, tmp + data.size());
+    uint64_t offset = 0;
+    uint64_t size = data.size();
+    std::vector<BeToken> ret;
+    ret.reserve(100);
+    while (offset < size)
+    {
+        auto res = parse(tmp, offset, data.size());
+        std::copy(res.begin(), res.end(), back_inserter(ret));
+    }
+    ret.shrink_to_fit();
+    return std::move(ret);
 }
 
-BeToken BeParser::process_integer(const char *& data, const char * END)
+std::vector<BeToken> BeParser::process_integer(const char * BEGIN, uint64_t & offset, uint64_t length)
 {
-    BeToken ret;
-    ret.m_type = BeToken::Type::INTEGER;
+    std::vector<BeToken> ret(1);
+    ret[0].m_type = BeToken::INT;
 
-    ++data; // 'i'
-    char * delim = nullptr;
-    auto value = strtol(data, &delim, 10);
-    assert(*delim == 'e' && "invalid integer format");
-    ret.m_int = value;
-    data = delim;
-    ++data; // 'e'
+    ++offset; // 'i'
+    const char * data = BEGIN + offset;
+    char * end = nullptr;
+    strtol(data, &end, 10);
+    assert(*end == 'e' && "invalid integer format");
+    ret[0].m_data.set(offset, end - BEGIN);
+    offset = end - BEGIN;
+    ++offset; // 'e'
 
     return std::move(ret);
 }
 
-BeToken BeParser::process_string(const char *& data, const char * END)
+std::vector<BeToken> BeParser::process_string(const char * BEGIN, uint64_t & offset, uint64_t length)
 {
-    BeToken ret;
-    ret.m_type = BeToken::Type::STRING;
+    std::vector<BeToken> ret(1);
+    ret[0].m_type = BeToken::STR;
 
+    const char * data = BEGIN + offset;
     char * delim = nullptr;
     auto len = strtol(data, &delim, 10);
     assert(*delim == ':' && "invalid string format");
-    data = ++delim; // ':'
-    std::string str(data, len);
-    ret.m_string = str;
-    data += len;
+    ++delim; // ':'
+    offset += delim - data;
+
+    ret[0].m_data.set(offset, offset + len);
+    offset += len;
 
     return std::move(ret);
 }
 
-BeToken BeParser::process_list(const char *& data, const char * END)
+std::vector<BeToken> BeParser::process_list(const char * BEGIN, uint64_t & offset, uint64_t length)
 {
-    BeToken ret;
-    ret.m_type = BeToken::Type::LIST;
+    std::vector<BeToken> ret;
+    ret.reserve(100); // XXX remove
+    ret.push_back(BeToken(BeToken::LIST_START));
 
-    ++data; // 'l'
-    while (data < END && *data != 'e')
+    ++offset; // 'l'
+
+    while (offset < length && *(BEGIN + offset) != 'e')
     {
-        ret.push_back(parse(data, END));
+        auto res = parse(BEGIN, offset, length);
+        if (res.begin()->m_type == BeToken::LIST_START)
+            std::copy(res.begin() + 1, res.end() - 1, back_inserter(ret));
+        else
+            std::copy(res.begin(), res.end(), back_inserter(ret));
     }
-    ++data; // 'e'
+    ++offset; // 'e'
+    ret.push_back(BeToken(BeToken::LIST_END));
     return std::move(ret);
 }
 
-BeToken BeParser::process_dictionary(const char *& data, const char * END)
+std::vector<BeToken> BeParser::process_dictionary(const char * BEGIN, uint64_t & offset, uint64_t length)
 {
-    BeToken ret;
-    ret.m_type = BeToken::Type::DICTIONARY;
+    std::vector<BeToken> ret;
+    ret.reserve(100); // XXX remove
+    ret.push_back(BeToken(BeToken::DICT_START));
 
-    ++data; // 'd'
-    while (data < END && *data != 'e')
+    ++offset; // 'l'
+
+    uint64_t i = 0;
+    while (offset < length && *(BEGIN + offset) != 'e')
     {
-        auto key = parse(data, END);
-        if (data >= END)
-            throw std::runtime_error("invalid BeToken::dictionary format");
-        auto value = parse(data, END);
-        ret.insert(key, value);
+        auto res = parse(BEGIN, offset, length);
+        if (!(i & 1) && res.begin()->m_type == BeToken::DICT_START)
+            std::copy(res.begin() + 1, res.end() - 1, back_inserter(ret));
+        else
+            std::copy(res.begin(), res.end(), back_inserter(ret));
+        ++i;
     }
-    ++data; // 'e'
+    ++offset; // 'e'
+    ret.push_back(BeToken(BeToken::DICT_END));
     return std::move(ret);
 }
 
-BeToken BeParser::parse(const char *& data, const char * END)
+std::vector<BeToken> BeParser::parse(const char * BEGIN, uint64_t & offset, uint64_t length)
 {
-    if (data < END)
+    if (offset < length)
     {
+        const char * data = (BEGIN + offset);
         switch (*data)
         {
             case 'i':
-                return process_integer(data, END);
+                return process_integer(BEGIN, offset, length);
 
             case '0':
             case '1':
@@ -90,18 +117,18 @@ BeToken BeParser::parse(const char *& data, const char * END)
             case '7':
             case '8':
             case '9':
-                return process_string(data, END);
+                return process_string(BEGIN, offset, length);
 
             case 'l':
-                return process_list(data, END);
+                return process_list(BEGIN, offset, length);
 
             case 'd':
-                return process_dictionary(data, END);
+                return process_dictionary(BEGIN, offset, length);
 
             default:
                 throw std::runtime_error("invalid be data");
         }
     }
-    return BeToken();
+    return std::vector<BeToken>();
 }
 
