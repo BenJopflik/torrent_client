@@ -26,8 +26,11 @@ public:
 
     ~BeToken();
 
-    uint64_t get_type() const;
-    std::string get(const std::string & source) const;
+    uint64_t type() const;
+    uint64_t length() const;
+
+    std::string str(const std::string & source) const;
+    std::string substr(const std::string & source, uint64_t offset, uint64_t length) const;
 
     // XXX debug
     std::string type_to_string() const;

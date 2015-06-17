@@ -15,14 +15,24 @@ BeToken::~BeToken()
 
 }
 
-std::string BeToken::get(const std::string & source) const
+std::string BeToken::str(const std::string & source) const
 {
-    return m_data.get_string(source);
+    return m_data.str(source);
 }
 
-uint64_t BeToken::get_type() const
+std::string BeToken::substr(const std::string & source, uint64_t offset, uint64_t length) const
+{
+    return m_data.substr(source, offset, length);
+}
+
+uint64_t BeToken::type() const
 {
     return m_type;
+}
+
+uint64_t BeToken::length() const
+{
+    return m_data.length();
 }
 
 std::string BeToken::type_to_string() const
