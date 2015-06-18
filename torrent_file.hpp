@@ -55,6 +55,9 @@ private:
     void fill_pieces(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
 
     void fill_piece_offsets();
+    void calculate_info_sha1(const std::vector<BeToken> & tokens, const std::string & source);
+    // XXX debug
+    std::string get_http_url() const;
 
 private:
     const std::unordered_map<std::string, decltype(&TorrentFile::fill_announce_list)> m_fillers {
@@ -76,6 +79,7 @@ private:
     std::string              m_created_by {""};
     std::string              m_encoding {""};
     std::string              m_dir_name {""};
+    std::string              m_info_sha1 {""};
 
     uint64_t                 m_creation_date {0};
     uint64_t                 m_piece_size {0};

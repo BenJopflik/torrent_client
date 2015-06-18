@@ -4,6 +4,8 @@
 #include <iostream>
 #include <sstream>
 #include <cassert>
+#include <openssl/sha.h>
+#include <cmath>
 
 static std::string get_data_from_file(const std::string & path_to_file)
 {
@@ -27,6 +29,7 @@ TorrentFile::TorrentFile(const std::string & path)
     process_file(path);
 
     fill_piece_offsets();
+    std::cerr << get_http_url() << std::endl;
 }
 
 void TorrentFile::process_file(const std::string & path)
@@ -53,6 +56,8 @@ void TorrentFile::process_file(const std::string & path)
 
         ++current_token;
     }
+
+    calculate_info_sha1(tokens, source);
 }
 
 void TorrentFile::fill_announce(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
@@ -217,7 +222,7 @@ void TorrentFile::fill_info(const std::vector<BeToken> & tokens, const std::stri
 
 void TorrentFile::fill_pieces(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
 {
-    auto & pieces = tokens[current_token];
+    auto pieces = tokens[current_token].get_substring();
     if (pieces.length() % SHA1_PIECE_LENGTH)
         throw std::runtime_error("invalid pieces length");
 
@@ -332,6 +337,7 @@ void TorrentFile::print() const
     std::cerr << "encoding: " << m_encoding << std::endl;
     std::cerr << "private: " << m_private << std::endl;
     std::cerr << "full size: " << m_full_size << std::endl;
+    std::cerr << "info hash: " << m_info_sha1 << std::endl;
     std::cerr << "dir name: " << m_dir_name << std::endl;
 
     std::cerr << "files: " << std::endl;
@@ -351,3 +357,128 @@ void TorrentFile::print() const
     std::cerr << std::endl;
 }
 
+static std::string hexer(const uint8_t * source, uint64_t size)
+{
+    static char HEX[] = "0123456789ABCDEF";
+
+    std::string output;
+    output.resize(size * 3);
+
+    uint64_t output_offset = 0;
+    char ch;
+    for (uint64_t i = 0; i < size; ++i)
+    {
+        ch = source[i];
+        if ((ch >= '0' && ch <= '9') ||
+            (ch >= 'a' && ch <= 'z') ||
+            (ch >= 'A' && ch <= 'Z') ||
+            (ch == ',') || (ch == '-') ||
+            (ch == '_') || (ch == '~')
+           )
+        {
+            output[output_offset++] = ch;
+            continue;
+        }
+
+        output[output_offset++] = '%';
+        output[output_offset++] = HEX[source[i] >> 4];
+        output[output_offset++] = HEX[source[i] & 0x0f];
+    }
+
+    output.shrink_to_fit();
+    return std::move(output);
+}
+
+void TorrentFile::calculate_info_sha1(const std::vector<BeToken> & tokens, const std::string & source)
+{
+    uint64_t i = 0;
+    const uint64_t TOKENS_SIZE = tokens.size();
+    for (; i < TOKENS_SIZE; ++i)
+    {
+        if (tokens[i].str(source) == "info")
+            break;
+    }
+
+    if (i == TOKENS_SIZE)
+    {
+        std::cerr << "no info key in file" << std::endl;
+        return;
+    }
+
+    ++i; // skip info
+
+    const uint64_t INFO_VALUE_START = i;
+    const uint64_t INFO_VALUE_START_OFFSET = tokens[i].get_substring().start();
+
+    uint64_t dict_depth = 0;
+    uint64_t type = 0;
+
+    do
+    {
+        type = tokens[i].type();
+        if (type == BeToken::DICT_START)
+            ++dict_depth;
+        else if (type == BeToken::DICT_END)
+            --dict_depth;
+
+        ++i;
+    }
+    while (i < TOKENS_SIZE && dict_depth);
+
+    if (i == TOKENS_SIZE)
+    {
+        std::cerr << "invalid file" << std::endl;
+        return;
+    }
+
+    uint64_t length_modifier = 0;
+
+    switch (tokens[i].type())
+    {
+        case BeToken::DICT_START:
+        case BeToken::DICT_END:
+        case BeToken::LIST_START:
+        case BeToken::LIST_END:
+            length_modifier = 0;
+            break;
+
+        case BeToken::INT:
+            length_modifier = 1;
+            break;
+
+        case BeToken::STR:
+            length_modifier = uint64_t(log10(tokens[i].get_substring().length()) + 1) + 1; // +1 -> ':'
+            break;
+    }
+
+    const uint64_t DATA_FOR_SHA_LENGTH = tokens[i].get_substring().start()
+                                         - INFO_VALUE_START_OFFSET - length_modifier;
+
+    std::string data_for_sha = source.substr(INFO_VALUE_START_OFFSET, DATA_FOR_SHA_LENGTH);
+
+    uint8_t sha[20];
+
+    SHA1((const uint8_t *)data_for_sha.c_str(), data_for_sha.size(), sha);
+
+    m_info_sha1 = hexer(sha, 20);
+}
+
+std::string TorrentFile::get_http_url() const
+{
+    std::string output;
+
+    output = m_announce;
+    output += "?info_hash=";
+    output += m_info_sha1;
+    output += "&peer_id=123qweasdzxcasdqwe11";
+    output += "&port=54321";
+    output += "&uploaded=0";
+    output += "&downloaded=0";
+    output += "&left=";
+    output += std::to_string(m_full_size);
+    output += "&numwant=80";
+    output += "&compact=1";
+    output += "&event=started";
+
+    return output;
+}

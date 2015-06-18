@@ -28,6 +28,8 @@ set (SOURCE_LIST main.cpp
 add_executable (${TARGET} ${SOURCE_LIST})
 target_link_libraries(${TARGET}
                         pthread
+                        ssl
+                        crypto
                      )
 
 

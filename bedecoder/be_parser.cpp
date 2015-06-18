@@ -58,6 +58,7 @@ std::vector<BeToken> BeParser::process_list(const char * BEGIN, uint64_t & offse
     std::vector<BeToken> ret;
     ret.reserve(100); // XXX remove
     ret.push_back(BeToken(BeToken::LIST_START));
+    ret.back().m_data.set(offset, 0);
 
     ++offset; // 'l'
 
@@ -66,8 +67,9 @@ std::vector<BeToken> BeParser::process_list(const char * BEGIN, uint64_t & offse
         auto res = parse(BEGIN, offset, length);
         std::copy(res.begin(), res.end(), back_inserter(ret));
     }
-    ++offset; // 'e'
     ret.push_back(BeToken(BeToken::LIST_END));
+    ret.back().m_data.set(offset, 0);
+    ++offset; // 'e'
     return std::move(ret);
 }
 
@@ -76,6 +78,7 @@ std::vector<BeToken> BeParser::process_dictionary(const char * BEGIN, uint64_t &
     std::vector<BeToken> ret;
     ret.reserve(100); // XXX remove
     ret.push_back(BeToken(BeToken::DICT_START));
+    ret.back().m_data.set(offset, 0);
 
     ++offset; // 'l'
 
@@ -84,8 +87,9 @@ std::vector<BeToken> BeParser::process_dictionary(const char * BEGIN, uint64_t &
         auto res = parse(BEGIN, offset, length);
         std::copy(res.begin(), res.end(), back_inserter(ret));
     }
-    ++offset; // 'e'
     ret.push_back(BeToken(BeToken::DICT_END));
+    ret.back().m_data.set(offset, 0);
+    ++offset; // 'e'
     return std::move(ret);
 }
 
