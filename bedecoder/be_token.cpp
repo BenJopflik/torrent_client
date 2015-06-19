@@ -20,6 +20,12 @@ std::string BeToken::str(const std::string & source) const
     return m_data.str(source);
 }
 
+std::string BeToken::str(const char * source, uint64_t size) const
+{
+    return m_data.str(source, size);
+}
+
+
 std::string BeToken::substr(const std::string & source, uint64_t offset, uint64_t length) const
 {
     return m_data.substr(source, offset, length);
@@ -30,9 +36,9 @@ uint64_t BeToken::type() const
     return m_type;
 }
 
-uint64_t BeToken::length() const
+const SubString & BeToken::get_substring() const
 {
-    return m_data.length();
+    return m_data;
 }
 
 std::string BeToken::type_to_string() const

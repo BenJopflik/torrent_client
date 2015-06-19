@@ -4,8 +4,11 @@
 #include <iostream>
 #include <sstream>
 #include <cassert>
-#include <openssl/sha.h>
 #include <cmath>
+#include <functional>
+#include <stdexcept>
+#include <memory>
+#include <openssl/sha.h>
 
 static std::string get_data_from_file(const std::string & path_to_file)
 {
@@ -13,7 +16,7 @@ static std::string get_data_from_file(const std::string & path_to_file)
     if (!in_file)
     {
         std::cerr << "unable to open: " << path_to_file;
-        exit(1);
+        throw std::runtime_error(std::string("unable to open file: ").append(path_to_file));
     }
 
     std::stringstream in;
@@ -24,12 +27,11 @@ static std::string get_data_from_file(const std::string & path_to_file)
     return std::move(source);
 }
 
-TorrentFile::TorrentFile(const std::string & path)
+TorrentFile::TorrentFile(const std::string & path) : m_path(path)
 {
     process_file(path);
 
     fill_piece_offsets();
-    std::cerr << get_http_url() << std::endl;
 }
 
 void TorrentFile::process_file(const std::string & path)
@@ -361,8 +363,8 @@ static std::string hexer(const uint8_t * source, uint64_t size)
 {
     static char HEX[] = "0123456789ABCDEF";
 
-    std::string output;
-    output.resize(size * 3);
+    std::unique_ptr<char []> output_(new char [size * 3]);
+    char * output = output_.get();
 
     uint64_t output_offset = 0;
     char ch;
@@ -385,8 +387,7 @@ static std::string hexer(const uint8_t * source, uint64_t size)
         output[output_offset++] = HEX[source[i] & 0x0f];
     }
 
-    output.shrink_to_fit();
-    return std::move(output);
+    return std::string(output, output_offset);
 }
 
 void TorrentFile::calculate_info_sha1(const std::vector<BeToken> & tokens, const std::string & source)
@@ -463,6 +464,17 @@ void TorrentFile::calculate_info_sha1(const std::vector<BeToken> & tokens, const
     m_info_sha1 = hexer(sha, 20);
 }
 
+uint64_t TorrentFile::hash() const
+{
+    return std::hash<std::string>()(m_path);
+}
+
+bool TorrentFile::operator == (const TorrentFile & right) const
+{
+    return m_path == right.m_path;
+}
+
+// XXX debug
 std::string TorrentFile::get_http_url() const
 {
     std::string output;
