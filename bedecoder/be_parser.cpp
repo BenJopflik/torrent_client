@@ -1,19 +1,17 @@
 #include "be_parser.hpp"
 #include <stdexcept>
 
-std::vector<BeToken> BeParser::parse(const std::string & data)
+std::vector<BeToken> BeParser::parse(const StringWrapper & source)
 {
-    return BeParser::parse(data.c_str(), data.size());
-}
+    const uint64_t SOURCE_SIZE = source.size();
+    const char * SOURCE = source.data();
 
-std::vector<BeToken> BeParser::parse(const char * source, uint64_t size)
-{
     uint64_t offset = 0;
     std::vector<BeToken> ret;
     ret.reserve(100);
-    while (offset < size)
+    while (offset < SOURCE_SIZE)
     {
-        auto res = BeParser::parse(source, offset, size);
+        auto res = BeParser::parse(SOURCE, offset, SOURCE_SIZE);
         std::copy(res.begin(), res.end(), back_inserter(ret));
     }
     ret.shrink_to_fit();

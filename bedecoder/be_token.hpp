@@ -1,5 +1,6 @@
 #pragma once
-#include "../jasl/common/sub_string.hpp" // XXX tmp
+#include "common/sub_string.hpp"
+#include "common/string_wrapper.hpp"
 
 class BeParser;
 
@@ -29,12 +30,9 @@ public:
     uint64_t type() const;
     uint64_t length() const;
 
-    std::string str(const std::string & source) const;
-    std::string str(const char * source, uint64_t size) const;
-
-    std::string substr(const std::string & source, uint64_t offset, uint64_t length) const;
-    std::string substr(const char * source, uint64_t size, uint64_t offset, uint64_t length) const;
-    const SubString & get_substring() const;
+    std::string str(const StringWrapper & source) const;
+    std::string substr(const StringWrapper & source, uint64_t offset, uint64_t length) const;
+    const SubString & substr() const;
 
     // XXX debug
     std::string type_to_string() const;

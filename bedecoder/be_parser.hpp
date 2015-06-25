@@ -5,8 +5,7 @@
 class BeParser
 {
 public:
-    static std::vector<BeToken> parse(const std::string & source);
-    static std::vector<BeToken> parse(const char * source, uint64_t length);
+    static std::vector<BeToken> parse(const StringWrapper & source);
 
 private:
     static std::vector<BeToken> parse             (const char * BEGIN, uint64_t & offset, uint64_t length);

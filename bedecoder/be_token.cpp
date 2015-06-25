@@ -15,18 +15,12 @@ BeToken::~BeToken()
 
 }
 
-std::string BeToken::str(const std::string & source) const
+std::string BeToken::str(const StringWrapper & source) const
 {
     return m_data.str(source);
 }
 
-std::string BeToken::str(const char * source, uint64_t size) const
-{
-    return m_data.str(source, size);
-}
-
-
-std::string BeToken::substr(const std::string & source, uint64_t offset, uint64_t length) const
+std::string BeToken::substr(const StringWrapper & source, uint64_t offset, uint64_t length) const
 {
     return m_data.substr(source, offset, length);
 }
@@ -36,7 +30,7 @@ uint64_t BeToken::type() const
     return m_type;
 }
 
-const SubString & BeToken::get_substring() const
+const SubString & BeToken::substr() const
 {
     return m_data;
 }
