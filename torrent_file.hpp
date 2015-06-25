@@ -4,7 +4,8 @@
 #include <vector>
 #include <unordered_map>
 #include "bedecoder/be_parser.hpp"
-#include "../jasl/common/hashable.hpp"
+#include "common/hashable.hpp"
+#include "token_list_processor.hpp"
 
 //https://wiki.theory.org/BitTorrentSpecification
 //http://bittorrent.org/beps/bep_0003.html
@@ -29,7 +30,7 @@ struct File
     OffsetInPiece last_piece;
 };
 
-class TorrentFile : public Hashable<TorrentFile>
+class TorrentFile : public Hashable<TorrentFile>, public TokenListProcessor<TorrentFile>
 {
     enum
     {
@@ -54,7 +55,9 @@ public:
     const std::string & created_by() const {return m_created_by;}
     const std::string & encoding()   const {return m_encoding;}
     const std::string & dir_name()   const {return m_dir_name;}
-    const std::string & info_hash()  const {return m_info_sha1;}
+    const std::string & info_hash()  const {return m_info_sha1_string;}
+
+    const std::string & info_hash_bin() const {return m_info_sha1;}
 
     const uint64_t & creation_date()   const {return m_creation_date;}
     const uint64_t & piece_size()      const {return m_piece_size;}
@@ -64,16 +67,15 @@ public:
 private:
     void process_file(const std::string & path);
 
-    void fill_announce(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-    void fill_announce_list(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-    void fill_creation_date(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-    void fill_comment(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-    void fill_created_by(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-    void fill_encoding(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-
-    void fill_info(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-    void fill_files(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
-    void fill_pieces(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token);
+    MEMBER_DECLARE(fill_announce)
+    MEMBER_DECLARE(fill_announce_list)
+    MEMBER_DECLARE(fill_creation_date)
+    MEMBER_DECLARE(fill_comment)
+    MEMBER_DECLARE(fill_created_by)
+    MEMBER_DECLARE(fill_encoding)
+    MEMBER_DECLARE(fill_info)
+    MEMBER_DECLARE(fill_files)
+    MEMBER_DECLARE(fill_pieces)
 
     void fill_piece_offsets();
     void calculate_info_sha1(const std::vector<BeToken> & tokens, const std::string & source);
@@ -81,33 +83,23 @@ private:
     std::string get_http_url() const;
 
 private:
-    const std::unordered_map<std::string, decltype(&TorrentFile::fill_announce_list)> m_fillers {
-                                                                                        {"announce", &TorrentFile::fill_announce},
-                                                                                        {"announce-list", &TorrentFile::fill_announce_list},
-                                                                                        {"creation date", &TorrentFile::fill_creation_date},
-                                                                                        {"comment", &TorrentFile::fill_comment},
-                                                                                        {"created by", &TorrentFile::fill_created_by},
-                                                                                        {"encoding", &TorrentFile::fill_encoding},
-                                                                                        {"info", &TorrentFile::fill_info}
-                                                                                      };
-
     std::vector<std::string> m_announce_list;
     std::vector<std::string> m_pieces; // 20-byte sha1 for every piece
     std::vector<File>        m_files;
 
-    std::string              m_path {""};
-    std::string              m_announce {""};
-    std::string              m_comment {""};
+    std::string              m_path       {""};
+    std::string              m_announce   {""};
+    std::string              m_comment    {""};
     std::string              m_created_by {""};
-    std::string              m_encoding {""};
-    std::string              m_dir_name {""};
-    std::string              m_info_sha1 {""};
+    std::string              m_encoding   {""};
+    std::string              m_dir_name   {""};
+    std::string              m_info_sha1  {""};
+    std::string              m_info_sha1_string  {""};
 
-    uint64_t                 m_creation_date {0};
-    uint64_t                 m_piece_size {0};
+    uint64_t                 m_creation_date   {0};
+    uint64_t                 m_piece_size      {0};
     uint64_t                 m_last_piece_size {0};
-    uint64_t                 m_full_size {0};
-    uint64_t                 m_private {0};
+    uint64_t                 m_full_size       {0};
+    uint64_t                 m_private         {0};
 };
-
-
+#undef MEMBER_DECLARE

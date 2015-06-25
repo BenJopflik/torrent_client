@@ -3,7 +3,6 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include <cassert>
 #include <cmath>
 #include <functional>
 #include <stdexcept>
@@ -15,7 +14,7 @@ static std::string get_data_from_file(const std::string & path_to_file)
     std::ifstream in_file(path_to_file.c_str());
     if (!in_file)
     {
-        std::cerr << "unable to open: " << path_to_file;
+        std::cerr << "unable to open: " << path_to_file << std::endl;
         throw std::runtime_error(std::string("unable to open file: ").append(path_to_file));
     }
 
@@ -29,40 +28,26 @@ static std::string get_data_from_file(const std::string & path_to_file)
 
 TorrentFile::TorrentFile(const std::string & path) : m_path(path)
 {
-    process_file(path);
+    m_fillers = {
+                    {"info",          &TorrentFile::fill_info},
+                    {"comment",       &TorrentFile::fill_comment},
+                    {"announce",      &TorrentFile::fill_announce},
+                    {"encoding",      &TorrentFile::fill_encoding},
+                    {"created by",    &TorrentFile::fill_created_by},
+                    {"announce-list", &TorrentFile::fill_announce_list},
+                    {"creation date", &TorrentFile::fill_creation_date}
+                };
 
-    fill_piece_offsets();
-}
-
-void TorrentFile::process_file(const std::string & path)
-{
     std::string source = get_data_from_file(path);
     auto tokens = BeParser::parse(source);
 
-    uint64_t current_token = 0;
-    auto filler = m_fillers.end();
-    uint64_t type = 0;
-    const uint64_t TOKENS_SIZE = tokens.size();
-    while (current_token < TOKENS_SIZE)
-    {
-        type = tokens[current_token].type();
-        if (type == BeToken::INT || type == BeToken::STR)
-        {
-            filler = m_fillers.find(tokens[current_token].str(source));
-            if (filler != m_fillers.end())
-            {
-                (this->*(filler->second))(tokens, source, current_token);
-                continue;
-            }
-        }
-
-        ++current_token;
-    }
+    process(tokens, source);
 
     calculate_info_sha1(tokens, source);
+    fill_piece_offsets();
 }
 
-void TorrentFile::fill_announce(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_announce)
 {
     ++current_token; // skip "announce"
     uint64_t type = tokens[current_token].type();
@@ -72,7 +57,7 @@ void TorrentFile::fill_announce(const std::vector<BeToken> & tokens, const std::
     ++current_token;
 }
 
-static std::vector<std::string> read_lists(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+static std::vector<std::string> read_lists(const std::vector<BeToken> & tokens, const StringWrapper & source, uint64_t & current_token)
 {
     std::vector<std::string> output;
     uint64_t type = tokens[current_token].type();
@@ -103,60 +88,34 @@ static std::vector<std::string> read_lists(const std::vector<BeToken> & tokens, 
     return std::move(output);
 }
 
-void TorrentFile::fill_announce_list(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_announce_list)
 {
     ++current_token; // skip "announce-list"
     m_announce_list.clear();
     m_announce_list = read_lists(tokens, source, current_token);
 }
 
-void TorrentFile::fill_creation_date(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_creation_date)
 {
-    ++current_token; // skip "creation date"
-    uint64_t type = tokens[current_token].type();
-    if (type == BeToken::INT)
-        m_creation_date = std::stoll(tokens[current_token].str(source), nullptr, 10);
-
-    ++current_token;
+    fill_int(m_creation_date, tokens, source, current_token);
 }
 
-void TorrentFile::fill_comment(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_comment)
 {
-    ++current_token; // skip "comment"
-    uint64_t type = tokens[current_token].type();
-    if (type == BeToken::STR)
-    {
-        m_comment = tokens[current_token].str(source);
-    }
-
-    ++current_token;
+    fill_str(m_comment, tokens, source, current_token);
 }
 
-void TorrentFile::fill_created_by(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_created_by)
 {
-    ++current_token; // skip "created by"
-    uint64_t type = tokens[current_token].type();
-    if (type == BeToken::STR)
-    {
-        m_created_by = tokens[current_token].str(source);
-    }
-
-    ++current_token;
+    fill_str(m_created_by, tokens, source, current_token);
 }
 
-void TorrentFile::fill_encoding(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_encoding)
 {
-    ++current_token; // skip "encoding"
-    uint64_t type = tokens[current_token].type();
-    if (type == BeToken::STR)
-    {
-        m_encoding = tokens[current_token].str(source);
-    }
-
-    ++current_token;
+    fill_str(m_encoding, tokens, source, current_token);
 }
 
-void TorrentFile::fill_info(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_info)
 {
     ++current_token; // skip "info"
 
@@ -217,14 +176,12 @@ void TorrentFile::fill_info(const std::vector<BeToken> & tokens, const std::stri
     }
 
     if (m_files.size() == 1)
-    {
         m_files[0].path = m_dir_name;
-    }
 }
 
-void TorrentFile::fill_pieces(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_pieces)
 {
-    auto pieces = tokens[current_token].get_substring();
+    auto pieces = tokens[current_token].substr();
     if (pieces.length() % SHA1_PIECE_LENGTH)
         throw std::runtime_error("invalid pieces length");
 
@@ -236,7 +193,7 @@ void TorrentFile::fill_pieces(const std::vector<BeToken> & tokens, const std::st
     ++current_token;
 }
 
-void TorrentFile::fill_files(const std::vector<BeToken> & tokens, const std::string & source, uint64_t & current_token)
+MEMBER_DEFINE(TorrentFile, fill_files)
 {
     uint64_t type = 0;
     const uint64_t TOKENS_SIZE = tokens.size();
@@ -319,7 +276,9 @@ void TorrentFile::fill_piece_offsets()
             ++piece_index;
     }
 
-    assert(!m_pieces.empty());
+    if (m_pieces.empty())
+        throw std::runtime_error("empty pieces list");
+
     m_last_piece_size = m_full_size % m_piece_size;
 }
 
@@ -408,8 +367,7 @@ void TorrentFile::calculate_info_sha1(const std::vector<BeToken> & tokens, const
 
     ++i; // skip info
 
-    const uint64_t INFO_VALUE_START = i;
-    const uint64_t INFO_VALUE_START_OFFSET = tokens[i].get_substring().start();
+    const uint64_t INFO_VALUE_START_OFFSET = tokens[i].substr().start();
 
     uint64_t dict_depth = 0;
     uint64_t type = 0;
@@ -448,11 +406,11 @@ void TorrentFile::calculate_info_sha1(const std::vector<BeToken> & tokens, const
             break;
 
         case BeToken::STR:
-            length_modifier = uint64_t(log10(tokens[i].get_substring().length()) + 1) + 1; // +1 -> ':'
+            length_modifier = uint64_t(log10(tokens[i].substr().length()) + 1) + 1; // +1 -> ':'
             break;
     }
 
-    const uint64_t DATA_FOR_SHA_LENGTH = tokens[i].get_substring().start()
+    const uint64_t DATA_FOR_SHA_LENGTH = tokens[i].substr().start()
                                          - INFO_VALUE_START_OFFSET - length_modifier;
 
     std::string data_for_sha = source.substr(INFO_VALUE_START_OFFSET, DATA_FOR_SHA_LENGTH);
@@ -461,9 +419,11 @@ void TorrentFile::calculate_info_sha1(const std::vector<BeToken> & tokens, const
 
     SHA1((const uint8_t *)data_for_sha.c_str(), data_for_sha.size(), sha);
 
-    m_info_sha1 = hexer(sha, 20);
+    m_info_sha1_string = hexer(sha, 20);
+    m_info_sha1.assign((const char *)sha, 20);
 }
 
+// hashable
 uint64_t TorrentFile::hash() const
 {
     return std::hash<std::string>()(m_path);
@@ -473,7 +433,7 @@ bool TorrentFile::operator == (const TorrentFile & right) const
 {
     return m_path == right.m_path;
 }
-
+// ------------------
 // XXX debug
 std::string TorrentFile::get_http_url() const
 {
@@ -494,3 +454,4 @@ std::string TorrentFile::get_http_url() const
 
     return output;
 }
+#undef MEMBER_DEFINE
