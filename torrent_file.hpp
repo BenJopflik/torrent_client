@@ -13,15 +13,16 @@
 
 
 // XXX store all pieces in corresponding File?
-struct File
+struct FileInfo
 {
     struct OffsetInPiece
     {
-        uint64_t piece_index {0};
+        uint64_t index  {0};
         uint64_t offset {0};
     };
 
-    std::string path {""};
+    std::vector<std::string> path;
+    std::string dir_name {""};
     std::string md5_sum {""};
     uint64_t size {0};
 
@@ -47,7 +48,7 @@ public:
 
     const std::vector<std::string> & announce_list() const {return m_announce_list;}
     const std::vector<std::string> & pieces()        const {return m_pieces;}
-    const std::vector<File>        & files()         const {return m_files;}
+    const std::vector<FileInfo>    & files()         const {return m_files;}
 
     const std::string & path()       const {return m_path;}
     const std::string & announce()   const {return m_announce;}
@@ -85,7 +86,7 @@ private:
 private:
     std::vector<std::string> m_announce_list;
     std::vector<std::string> m_pieces; // 20-byte sha1 for every piece
-    std::vector<File>        m_files;
+    std::vector<FileInfo>    m_files;
 
     std::string              m_path       {""};
     std::string              m_announce   {""};

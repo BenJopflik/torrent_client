@@ -134,7 +134,7 @@ MEMBER_DEFINE(TorrentFile, fill_info)
     std::string value = "";
     uint64_t value_type = 0;
 
-    m_files.push_back(File());
+    m_files.push_back(FileInfo());
 
     while (current_token < TOKENS_SIZE)
     {
@@ -169,14 +169,21 @@ MEMBER_DEFINE(TorrentFile, fill_info)
         else
         {
             current_token = TOKENS_SIZE;
-            return;
+            break;
         }
 
         ++current_token;
     }
 
+    std::string dir_path = "/tmp/torrents/";
+
     if (m_files.size() == 1)
-        m_files[0].path = m_dir_name;
+        m_files[0].path.push_back(m_dir_name);
+    else
+        dir_path += m_dir_name;
+
+    for (auto & file : m_files)
+        file.dir_name = dir_path;
 }
 
 MEMBER_DEFINE(TorrentFile, fill_pieces)
@@ -211,7 +218,7 @@ MEMBER_DEFINE(TorrentFile, fill_files)
         if (type != BeToken::DICT_START)
             break;
         else if (!first_iter)
-            m_files.push_back(File());
+            m_files.push_back(FileInfo());
 
         first_iter = false;
 
@@ -233,11 +240,12 @@ MEMBER_DEFINE(TorrentFile, fill_files)
                 if (key == "path" && value_type == BeToken::LIST_START)
                 {
                     auto path = read_lists(tokens, source, current_token);
-                    for (const auto & i : path)
-                    {
-                        m_files.back().path += '/';
-                        m_files.back().path += i;
-                    }
+                    std::copy(path.begin(), path.end(), std::back_inserter(m_files.back().path));
+//                    for (const auto & i : path)
+//                    {
+//                        m_files.back().path += '/';
+//                        m_files.back().path += i;
+//                    }
                 }
                 else if (key == "md5sum" && value_type == BeToken::STR)
                     m_files.back().md5_sum = tokens[current_token].str(source);
@@ -261,7 +269,7 @@ void TorrentFile::fill_piece_offsets()
     for (uint64_t i = 0; i < NUMBER_OF_FILES; ++i)
     {
         m_full_size += m_files[i].size;
-        m_files[i].first_piece.piece_index = piece_index;
+        m_files[i].first_piece.index = piece_index;
         m_files[i].first_piece.offset = offset;
 
         offset += m_files[i].size;
@@ -269,7 +277,7 @@ void TorrentFile::fill_piece_offsets()
 
         offset %= m_piece_size;
 
-        m_files[i].last_piece.piece_index = piece_index;
+        m_files[i].last_piece.index = piece_index;
         m_files[i].last_piece.offset = !offset ? m_piece_size : offset;
 
         if (!offset)
@@ -305,13 +313,13 @@ void TorrentFile::print() const
 
     for (const auto & i : m_files)
     {
-        std::cerr << '\t' << "path: " << i.path << std::endl;
+        std::cerr << '\t' << "path: " << i.path.back() << std::endl;
         std::cerr << '\t' << "size: " << i.size << std::endl;
         std::cerr << '\t' << "md5_sum: " << i.md5_sum << std::endl;
         std::cerr << '\t' << "first_piece.offset: " << i.first_piece.offset << std::endl;
-        std::cerr << '\t' << "first_piece.piece_index: " << i.first_piece.piece_index << std::endl;
+        std::cerr << '\t' << "first_piece.piece_index: " << i.first_piece.index << std::endl;
         std::cerr << '\t' << "last_piece.offset: " << i.last_piece.offset << std::endl;
-        std::cerr << '\t' << "last_piece.piece_index: " << i.last_piece.piece_index << std::endl;
+        std::cerr << '\t' << "last_piece.piece_index: " << i.last_piece.index << std::endl;
         std::cerr << std::endl;
     }
 

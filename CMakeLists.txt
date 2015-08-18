@@ -12,7 +12,7 @@ set (CMAKE_LIBRARY_PATH "/usr/local/lib")
 LINK_DIRECTORIES(${PROJECT_BINARY_DIR})
 LINK_DIRECTORIES(${JASL}/build)
 
-set (CMAKE_CXX_COMPLILER "g++")
+set (CMAKE_CXX_COMPLILER "clang++")
 set (CMAKE_CXX_FLAGS "-std=c++0x -ggdb3 -Wall")
 
 set (TARGET main)
@@ -21,11 +21,17 @@ set (SOURCE_LIST main.cpp
 
                 init_http_request.cpp
                 tracker_response.cpp
+                client_logic.cpp
+                active_sockets.cpp
+                peer_protocol.cpp
 
                 bedecoder/be_token.cpp
                 bedecoder/be_parser.cpp
 
                 torrent_file.cpp
+                piece_list.cpp
+                piece.cpp
+                files.cpp
                 download_manager.cpp
 
     )

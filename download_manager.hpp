@@ -2,7 +2,7 @@
 #include <string>
 
 #include "torrent_file.hpp"
-#include "../jasl/common/hasher.hpp"
+#include "common/hasher.hpp"
 
 class DownloadManager
 {

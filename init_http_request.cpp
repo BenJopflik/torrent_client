@@ -1,24 +1,27 @@
 #include "init_http_request.hpp"
 
-#include <sys/epoll.h>
 #include <cstring>
 #include "socket/socket.hpp"
 #include "bedecoder/be_parser.hpp"
 #include "tracker_response.hpp"
+#include "socket/tcp/client.hpp"
+#include "client_logic.hpp"
 
-InitHttpRequest::~InitHttpRequest()
+TrackerConnection::~TrackerConnection()
 {
 
 }
 
-void InitHttpRequest::on_read(Socket *socket)
+void TrackerConnection::on_read(Socket *socket)
 {
     if (m_state != WAIT_FOR_READ)
         return;
 
     std::cerr << "onread" << std::endl;
-    bool eof;
+    bool eof = false;
     int64_t readed = 0;
+    offset = 0;
+    memset(buffer, 0, 50000); // for valgrind
     while ((readed = socket->read(buffer + offset, 50000 - offset, eof)))
     {
         std::cerr << readed << " " << buffer << std::endl;
@@ -30,18 +33,45 @@ void InitHttpRequest::on_read(Socket *socket)
 
     if (!delim)
     {
-        std::cerr << "incomplete buffer" << std::endl;
-        return;
+        delim = strstr((char *)buffer, "\n\n");
+        if (!delim)
+        {
+            std::cerr << "incomplete buffer" << std::endl;
+            return;
+        }
+        delim += 2;
     }
+    else
+        delim += 4;
 
-    delim += 4;
     readed = readed - ((uint8_t * )delim - buffer);
 
-    auto tokens = BeParser::parse((const char *)delim, readed);
+    auto tokens = BeParser::parse({(const char *)delim, readed});
 
     TrackerResponse tr(tokens, delim, readed);
-    tr.print();
 
+    if (tr)
+        tr.print();
+    else
+        std::cerr << tr.failure_reason() << std::endl;
+
+    for (const auto & peer : tr.peers())
+    {
+        try
+        {
+//            std::unique_ptr<Socket> client_(new TcpClient(peer.saddr));
+            Socket * client = create_tcp_client(peer.saddr);
+            auto remote_ip = client->get_remote_ip();
+            m_active_sockets.remove(LightPeerInfo(remote_ip.addr.sin_addr.s_addr, remote_ip.port));
+            client->set_callbacks<ClientLogic>(std::ref(m_active_sockets), std::ref(m_files), std::ref(m_piece_list), std::ref(m_info_hash));
+            client->add_to_poller(Action::WRITE, socket->get_poller());
+//            break; // XXX use first client
+        }
+        catch (const std::exception & e)
+        {
+            std::cerr << e.what() << std::endl;
+        }
+    }
 
 //    for (const auto & token : tokens)
 //    {
@@ -71,7 +101,7 @@ void InitHttpRequest::on_read(Socket *socket)
 
 }
 
-void InitHttpRequest::on_write(Socket *socket)
+void TrackerConnection::on_write(Socket *socket)
 {
     if (m_state != WAIT_FOR_WRITE)
         return;
@@ -92,34 +122,34 @@ void InitHttpRequest::on_write(Socket *socket)
     m_state = WAIT_FOR_READ;
 }
 
-void InitHttpRequest::on_error(Socket * socket)
+void TrackerConnection::on_error(Socket * socket)
 {
     std::cerr << "error: " << socket->get_last_error() << std::endl;
 }
 
-//void InitHttpRequest::on_accept(Socket *, const NewConnection &)
+//void TrackerConnection::on_accept(Socket *, const NewConnection &)
 //{
 //    //
 //}
 
-void InitHttpRequest::on_close(Socket *socket)
+void TrackerConnection::on_close(Socket *socket, int64_t fd)
 {
     std::cerr << "onclose" << std::endl;
+    auto remote_ip = socket->get_remote_ip();
+    m_active_sockets.remove(LightPeerInfo(remote_ip.addr.sin_addr.s_addr, remote_ip.port));
 }
 
-void InitHttpRequest::on_connected(Socket * socket)
+void TrackerConnection::on_connected(Socket * socket)
 {
     std::cerr << "connected to " << socket->get_remote_addr() << std::endl;
 }
 
-void InitHttpRequest::on_rearm(Socket * socket)
+void TrackerConnection::on_rearm(Socket * socket)
 {
     std::cerr << "onrearm" << std::endl;
-    uint64_t mask = EPOLLONESHOT;
     if (m_state == WAIT_FOR_WRITE)
-        mask |= EPOLLOUT;
+        socket->add_to_poller(Action::WRITE);
     else
-        mask |= EPOLLIN;
+        socket->add_to_poller(Action::READ);
 
-    socket->add_to_poller(mask);
 }
